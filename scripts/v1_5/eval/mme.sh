@@ -1,17 +1,32 @@
 #!/bin/bash
+export CUDA_VISIBLE_DEVICES=1
+
+seed=1
+model_path=liuhaotian/llava-v1.5-7b
+
+image_folder=/home/dataset/MME_Benchmark_release_version
+question_file=llava_eval/MME/llava_mme_gt.jsonl
+
+temperature=1
+
+experiment=llava-v1.5-7b-sample-t${temperature}-seed${seed}
+answers_file=llava_eval/MME/answers/${experiment}.jsonl
 
 python -m llava.eval.model_vqa_loader \
-    --model-path liuhaotian/llava-v1.5-13b \
-    --question-file ./playground/data/eval/MME/llava_mme.jsonl \
-    --image-folder ./playground/data/eval/MME/MME_Benchmark_release_version \
-    --answers-file ./playground/data/eval/MME/answers/llava-v1.5-13b.jsonl \
-    --temperature 0 \
-    --conv-mode vicuna_v1
+    --model-path $model_path \
+    --question-file $question_file \
+    --image-folder $image_folder \
+    --answers-file $answers_file \
+    --temperature $temperature \
+    --seed ${seed}
 
-cd ./playground/data/eval/MME
 
-python convert_answer_to_mme.py --experiment llava-v1.5-13b
+cd llava_eval/MME
+
+python convert_answer_to_mme.py --experiment $experiment
 
 cd eval_tool
 
-python calculation.py --results_dir answers/llava-v1.5-13b
+echo "MME Experiment: $experiment"
+
+python calculation.py --results_dir answers/${experiment}

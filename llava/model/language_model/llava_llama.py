@@ -67,6 +67,11 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         image_sizes: Optional[List[List[int]]] = None,
+        input_ids_ncd: torch.LongTensor = None,
+        images_cd: Optional[torch.FloatTensor] = None,
+        cd_beta: Optional[torch.FloatTensor] = None,
+        cd_alpha: Optional[torch.FloatTensor] = None,
+        
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
 
@@ -154,5 +159,35 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
             inputs['image_sizes'] = image_sizes
         return inputs
 
+    def prepare_inputs_for_generation_vcd(self, input_ids, past_key_values=None,
+                                      inputs_embeds=None, **kwargs):
+        images_cd = kwargs.pop("images_cd", None)
+        image_sizes = kwargs.pop("image_sizes", None)
+        inputs = super().prepare_inputs_for_generation(
+            input_ids, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs
+        )
+        if images_cd is not None:
+            inputs['images'] = images_cd
+        if image_sizes is not None:
+            inputs['image_sizes'] = image_sizes
+        
+        return inputs
+    
+    def prepare_inputs_for_generation_ncd(self, input_ids, past_key_values=None,
+                                      inputs_embeds=None, **kwargs):
+        images = kwargs.pop("images", None)
+        image_sizes = kwargs.pop("image_sizes", None)
+        inputs_ids_ncd= kwargs.pop("input_ids_ncd", None)
+        inputs = super().prepare_inputs_for_generation(
+            inputs_ids_ncd, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs
+        )
+        if images is not None:
+            inputs['images'] = images
+        if image_sizes is not None:
+            inputs['image_sizes'] = image_sizes
+        return inputs
+    
+    
+    
 AutoConfig.register("llava_llama", LlavaConfig)
 AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)
