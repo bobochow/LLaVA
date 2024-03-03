@@ -17,7 +17,7 @@ neg=false
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
     neg_question_file=llava_eval/MME/llava_mme_neg.jsonl
-    experiment=llava-v1.5-7b-ncd-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
+    experiment=llava-v1.5-7b-ncdv2-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
 else
     neg_question_file=llava_eval/MME/llava_mme_gt.jsonl
     question_file=llava_eval/MME/llava_mme_neg.jsonl

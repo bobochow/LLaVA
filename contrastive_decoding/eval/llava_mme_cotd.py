@@ -20,18 +20,86 @@ from PIL import Image
 import math
 
 from transformers import set_seed
-from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise
-from contrastive_decoding.decoding_utils.vcd_decoding import evolve_vcd_sampling
-evolve_vcd_sampling()
+
+def get_next_token_logit(model, tokenizer, input_ids, image_tensor, image_sizes):
+    
+    with torch.inference_mode():
+        gen_out = model.generate(input_ids,
+                            images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
+                            image_sizes=image_sizes,
+                            output_scores=True, return_dict_in_generate=True, max_new_tokens=1, pad_token_id=tokenizer.eos_token_id)
+    return gen_out.scores[-1]
+
+def get_path_prob(gen_out, init_token_prob=None):
+    if init_token_prob is None:
+        token_ids, probs = get_token_path_prob(gen_out, num_append=0)
+    else:
+        token_ids, probs = get_token_path_prob(gen_out)
+        probs = torch.concat([init_token_prob, probs])
+    current_n_words = 0
+    current_prob = 0
+    word_probs = []
+    ids = []
+    current_n_tokens = 0
+    word_prob = 0
+    current_n_words = 0
+    for token_id, prob in zip(token_ids, probs):
+        ids.append(token_id)
+        decode_seq = tokenizer.decode(ids)
+        # print('Decode Sequence: ', decode_seq)
+        words = re.split(r' |\n|\.\|:', decode_seq)
+        # print('Splitted Words: ')
+        # print(words)
+        word = words[-1]
+        if len(words) == current_n_words:
+            word_prob += prob
+            current_n_tokens += 1
+            # more than one tokens correspond to the same word, word gets updated
+            word_probs[-1] = (word, word_prob / current_n_tokens) # replace the previous word in the word prob list
+        elif len(words) > current_n_words: # A old word is determined
+            word_prob = prob
+            current_n_tokens = 1
+            word_probs.append((word, word_prob / current_n_tokens))
+            current_n_words += 1
+    return word_probs
+
+def get_follow_up_output(model, tokenizer, follow_up_template, gen_out, max_new_tokens=40):
+    construct_input = lambda new_ids: {'input_ids': new_ids, "attention_mask":torch.ones_like(new_ids)}
+    output_ids = gen_out.sequences
+    follow_up_ids = tokenizer(follow_up_template, return_tensors="pt")['input_ids']
+    new_ids = torch.concat([output_ids, follow_up_ids], axis=1)
+    inputs = construct_input(new_ids)
+    gen_out = model.generate(**inputs, output_scores=True, return_dict_in_generate=True, max_new_tokens=max_new_tokens, pad_token_id=tokenizer.eos_token_id)
+    return gen_out
+
+def get_k_path_prob_follow_up(model, tokenizer, input_ids, image_tensor, image_sizes, k, max_new_tokens=80, 
+                                follow_up_template=" So the answer is: "):
+    logit = get_next_token_logit(model, tokenizer, input_ids, image_tensor, image_sizes)
+    k_token = logit[0].argsort()[-k:]
+    k_prob = torch.nn.functional.softmax(logit[0][logit[0].argsort()[-k:]], dim=0)
+    k_response = []
+    for token in k_token:
+        new_query = query + tokenizer.decode(token)
+        candidate_inputs = tokenizer(new_query, return_tensors="pt")
+        gen_out = model.generate(**candidate_inputs, output_scores=True, return_dict_in_generate=True, max_new_tokens=max_new_tokens, pad_token_id=tokenizer.eos_token_id)
+        
+        follow_up_out = get_follow_up_output(model, tokenizer, follow_up_template, gen_out)
+        path_probs = get_path_prob(follow_up_out, k_prob)
+
+        print(path_probs)
+        print('----'*5)
+        k_response.append(path_probs)
+    return k_response
+
 
 class CustomDataset(Dataset):
-    def __init__(self, questions, image_folder, tokenizer, image_processor, model_config, noise_step):
+    def __init__(self, questions, image_folder, tokenizer, image_processor, model_config):
         self.questions = questions
         self.image_folder = image_folder
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.model_config = model_config
-        self.noise_step = noise_step
+
 
     def __getitem__(self, index):
         line = self.questions[index]
@@ -51,27 +119,25 @@ class CustomDataset(Dataset):
         image_tensor = process_images([image], self.image_processor, self.model_config)[0]
         input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
         
-        image_tensor_cd = add_diffusion_noise(image_tensor, self.noise_step)
-        
-        return input_ids, image_tensor, image_tensor_cd, image.size
+        return input_ids, image_tensor, image.size
 
     def __len__(self):
         return len(self.questions)
 
 
 def collate_fn(batch):
-    input_ids, image_tensors, image_tensor_cd, image_sizes = zip(*batch)
+    input_ids, image_tensors, image_sizes = zip(*batch)
     input_ids = torch.stack(input_ids, dim=0)
     image_tensors = torch.stack(image_tensors, dim=0)
-    image_tensor_cd = torch.stack(image_tensor_cd, dim=0)
-    return input_ids, image_tensors, image_tensor_cd, image_sizes
+    
+    return input_ids, image_tensors, iimage_sizes
 
 
 
 # DataLoader
-def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, noise_step, batch_size=1, num_workers=4):
+def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, batch_size=1, num_workers=4):
     assert batch_size == 1, "batch_size must be 1"
-    dataset = CustomDataset(questions, image_folder, tokenizer, image_processor, model_config, noise_step)
+    dataset = CustomDataset(questions, image_folder, tokenizer, image_processor, model_config)
     data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return data_loader
 
@@ -98,22 +164,7 @@ def eval_model(args):
         input_ids = input_ids.to(device='cuda', non_blocking=True)
         
         
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
-                images_cd=(image_tensor_cd.to(dtype=torch.float16, device='cuda', non_blocking=True) if image_tensor_cd is not None else None),
-                image_sizes=image_sizes,
-                cd_alpha = args.cd_alpha,
-                cd_beta = args.cd_beta,
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                top_k=args.top_k,
-                num_beams=args.num_beams,
-                max_new_tokens=args.max_new_tokens,
-                use_cache=True)
-
+        
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
         ans_id = shortuuid.uuid()
