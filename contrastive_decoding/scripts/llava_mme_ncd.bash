@@ -1,11 +1,11 @@
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=0
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
 type=${3:-"random"}
 model_path=${4:-"liuhaotian/llava-v1.5-7b"}
 cd_alpha=${5:-1}
-cd_beta=${6:-0.1}
+cd_beta=${6:-0.2}
 
 
 image_folder=/home/dataset/MME_Benchmark_release_version
@@ -13,15 +13,15 @@ image_folder=/home/dataset/MME_Benchmark_release_version
 
 temperature=1
 
-neg=false
+neg=true
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
     neg_question_file=llava_eval/MME/llava_mme_neg.jsonl
-    experiment=llava-v1.5-7b-ncd-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
+    experiment=llava-v1.5-7b-ncdv2-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
 else
     neg_question_file=llava_eval/MME/llava_mme_gt.jsonl
     question_file=llava_eval/MME/llava_mme_neg.jsonl
-    experiment=NEG-llava-v1.5-7b-ncd-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
+    experiment=NEG-llava-v1.5-7b-ncdv2-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
 fi
 
 

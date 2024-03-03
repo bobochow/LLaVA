@@ -1,44 +1,37 @@
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=0
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
-type=${3:-"random"}
-# model_name=llava-v1.5-7b
+
+model_name=llava-v1.5-7b
 # model_name=llava-v1.5-13b
-model_name=llava-v1.6-mistral-7b
+# model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
-cd_alpha=${5:-1}
-cd_beta=${6:-0.1}
-noise_step=${7:-500}
+num_branches=5
 
 image_folder=/home/dataset/MME_Benchmark_release_version
 
-temperature=1
 
 neg=false
 
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
-    experiment=${model_name}-vcd-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
+    experiment=${model_name}-cot_decoding-${num_branches}branches-seed${seed}
 else
     question_file=llava_eval/MME/llava_mme_neg.jsonl
-    experiment=NEG-${model_name}-vcd-t${temperature}-a${cd_alpha}-b${cd_beta}-seed${seed}
+    experiment=NEG-${model_name}-cot_decoding-${num_branches}branches-seed${seed}
 fi
 
 answers_file=llava_eval/MME/answers/${experiment}.jsonl
 
 
-python contrastive_decoding/eval/llava_mme_vcd.py \
+python contrastive_decoding/eval/llava_mme_cotd.py \
     --model-path ${model_path} \
     --question-file ${question_file} \
     --image-folder ${image_folder} \
     --answers-file  ${answers_file} \
-    --use_cd \
-    --cd_alpha $cd_alpha \
-    --cd_beta $cd_beta \
-    --noise_step $noise_step \
     --seed ${seed} \
-    --temperature ${temperature} \
+    --num_branches ${num_branches} \
 
 cd llava_eval/MME
 

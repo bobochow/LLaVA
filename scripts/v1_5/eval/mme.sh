@@ -1,15 +1,23 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=2
 
-seed=1
+seed=55
 model_path=liuhaotian/llava-v1.5-7b
 
 image_folder=/home/dataset/MME_Benchmark_release_version
-question_file=llava_eval/MME/llava_mme_gt.jsonl
 
 temperature=1
 
-experiment=llava-v1.5-7b-sample-t${temperature}-seed${seed}
+neg=true
+
+if [[ $neg == false ]]; then
+    question_file=llava_eval/MME/llava_mme_gt.jsonl
+    experiment=llava-v1.5-7b-sample-t${temperature}-seed${seed}
+else
+    question_file=llava_eval/MME/llava_mme_neg.jsonl
+    experiment=NEG-lava-v1.5-7b-sample-t${temperature}-seed${seed}
+fi
+
 answers_file=llava_eval/MME/answers/${experiment}.jsonl
 
 python -m llava.eval.model_vqa_loader \

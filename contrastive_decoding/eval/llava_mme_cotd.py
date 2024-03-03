@@ -1,6 +1,7 @@
 import argparse
 import torch
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import json
 from tqdm import tqdm
 import shortuuid
@@ -18,20 +19,64 @@ from torch.utils.data import Dataset, DataLoader
 
 from PIL import Image
 import math
-
+import re
 from transformers import set_seed
-from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise
-from contrastive_decoding.decoding_utils.vcd_decoding import evolve_vcd_sampling
-evolve_vcd_sampling()
+
+def get_next_token_logit(model, tokenizer, input_ids, image_tensor, image_sizes):
+    
+    with torch.inference_mode():
+        gen_out = model.generate(input_ids,
+                            images=image_tensor,
+                            image_sizes=image_sizes,
+                            output_scores=True, return_dict_in_generate=True, max_new_tokens=1)
+    return gen_out.scores[-1]
+
+
+def generate_branching_responses(model, tokenizer, input_ids, image_tensors, image_sizes, prompt, k, max_new_tokens=80):
+    logit = get_next_token_logit(model, tokenizer, input_ids, image_tensors, image_sizes)
+    k_token = logit[0].argsort()[-k:]
+    k_prob = torch.nn.functional.softmax(logit[0][logit[0].argsort()[-k:]], dim=0)
+    k_response = []
+    response_probs = []
+    for init_token, init_prob in zip(k_token, k_prob):
+        init_text = tokenizer.decode(init_token, skip_special_tokens=True)
+        new_query = prompt + init_text
+        candidate_inputs = tokenizer_image_token(new_query, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
+        candidate_inputs = torch.stack((candidate_inputs,), dim=0).to(device='cuda', non_blocking=True)
+        gen_out = model.generate(candidate_inputs, 
+                                images=image_tensors,
+                                image_sizes=image_sizes,
+                                output_scores=True, return_dict_in_generate=True, max_new_tokens=max_new_tokens)
+        
+        logits = gen_out.scores
+        num_output = len(logits)
+        output_ids = gen_out.sequences[0][-num_output:]
+        response = tokenizer.decode(torch.cat([init_token.unsqueeze(0), output_ids]), skip_special_tokens=True).strip()
+        
+        path_probs = [round(init_prob.item(), 4)]
+        for score in logits:
+            probabilities = torch.softmax(score, dim=-1)
+            topk_values, topk_indicies = torch.topk(probabilities, 2)
+            prob_diff = topk_values[:, 0] - topk_values[:, 1]
+            # decode_seq = tokenizer.decode(topk_indices[:, 0], skip_special_tokens=True)
+            # response.append(decode_seq)
+            path_probs.append(round(prob_diff.item(), 4))
+            # print(f"{decode_seq}  {round(prob_diff.item(), 4)}")
+        # print('----'*5)
+        k_response.append(response)
+        response_probs.append(sum(path_probs) / len(path_probs))
+    return k_response, response_probs
+
+
 
 class CustomDataset(Dataset):
-    def __init__(self, questions, image_folder, tokenizer, image_processor, model_config, noise_step):
+    def __init__(self, questions, image_folder, tokenizer, image_processor, model_config):
         self.questions = questions
         self.image_folder = image_folder
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.model_config = model_config
-        self.noise_step = noise_step
+
 
     def __getitem__(self, index):
         line = self.questions[index]
@@ -51,30 +96,25 @@ class CustomDataset(Dataset):
         image_tensor = process_images([image], self.image_processor, self.model_config)[0]
         input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
         
-        image_tensor_cd = add_diffusion_noise(image_tensor, self.noise_step)
-        
-        return input_ids, image_tensor, image_tensor_cd, image.size
+        return input_ids, image_tensor, image.size, prompt
 
     def __len__(self):
         return len(self.questions)
 
 
 def collate_fn(batch):
-    input_ids, image_tensors, image_tensor_cd, image_sizes = zip(*batch)
+    input_ids, image_tensors, image_sizes, prompt = zip(*batch)
     input_ids = torch.stack(input_ids, dim=0)
     image_tensors = torch.stack(image_tensors, dim=0)
-    image_tensor_cd = torch.stack(image_tensor_cd, dim=0)
-    return input_ids, image_tensors, image_tensor_cd, image_sizes
-
-
+    
+    return input_ids, image_tensors, image_sizes, list(prompt)
 
 # DataLoader
-def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, noise_step, batch_size=1, num_workers=4):
+def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, batch_size=1, num_workers=4):
     assert batch_size == 1, "batch_size must be 1"
-    dataset = CustomDataset(questions, image_folder, tokenizer, image_processor, model_config, noise_step)
+    dataset = CustomDataset(questions, image_folder, tokenizer, image_processor, model_config)
     data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return data_loader
-
 
 def eval_model(args):
     # Model
@@ -88,34 +128,32 @@ def eval_model(args):
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
     
-    data_loader = create_data_loader(questions, args.image_folder, tokenizer, image_processor, model.config, args.noise_step)
+    data_loader = create_data_loader(questions, args.image_folder, tokenizer, image_processor, model.config)
     
-    for (input_ids, image_tensor, image_tensor_cd, image_sizes), line in tqdm(zip(data_loader, questions), total=len(questions)):
+    for (input_ids, image_tensors, image_sizes, prompt), line in tqdm(zip(data_loader, questions), total=len(questions)):
         idx = line["question_id"]
         cur_prompt = line["text"]
         gt = line["GT"]
         
         input_ids = input_ids.to(device='cuda', non_blocking=True)
+        image_tensors = image_tensors.to(dtype=torch.float16, device='cuda', non_blocking=True)
         
+        k_response, response_probs = generate_branching_responses(model, tokenizer, input_ids, image_tensors, image_sizes, prompt[0], args.num_branches, args.max_new_tokens)
         
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
-                images_cd=(image_tensor_cd.to(dtype=torch.float16, device='cuda', non_blocking=True) if image_tensor_cd is not None else None),
-                image_sizes=image_sizes,
-                cd_alpha = args.cd_alpha,
-                cd_beta = args.cd_beta,
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                top_k=args.top_k,
-                num_beams=args.num_beams,
-                max_new_tokens=args.max_new_tokens,
-                use_cache=True)
-
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
-
+        pos_score = 0.0
+        neg_score = 0.0
+        for i ,response, prob in zip(range(len(k_response)), k_response, response_probs):
+            
+            if 'yes' in response.lower().strip():
+                pos_score += prob
+            elif re.search(r'\bno\b', response, re.IGNORECASE):
+                neg_score += prob
+        
+        if pos_score > neg_score:
+            outputs = "Yes"
+        else:
+            outputs = "No"
+        
         ans_id = shortuuid.uuid()
         ans_file.write(json.dumps({"question_id": idx,
                                    "prompt": cur_prompt,
@@ -136,16 +174,10 @@ if __name__ == "__main__":
     parser.add_argument("--question-file", type=str, default="llava_eval/MME/llava_mme_gt.jsonl")
     parser.add_argument("--answers-file", type=str, default="llava_eval/MME/answers/test.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
-    parser.add_argument("--temperature", type=float, default=1.0)
-    parser.add_argument("--top_p", type=float, default=None)
-    parser.add_argument("--top_k", type=int, default=0)
-    parser.add_argument("--num_beams", type=int, default=1)
+    
     parser.add_argument("--max_new_tokens", type=int, default=128)
 
-    parser.add_argument("--noise_step", type=int, default=500)
-    parser.add_argument("--use_cd", action='store_true', default=False)
-    parser.add_argument("--cd_alpha", type=float, default=1)
-    parser.add_argument("--cd_beta", type=float, default=0.1)
+    parser.add_argument("--num_branches", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     set_seed(args.seed)
