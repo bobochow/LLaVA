@@ -129,7 +129,12 @@ def sample(
         model_kwargs_cd = model_kwargs.copy()
 
         if use_cd:
-            ## cd_comments: forward pass of the model with distorted image input
+            
+            ## cd_comments: pre-process logits from contrastive inputs
+            cd_alpha = model_kwargs.get("cd_alpha") if model_kwargs.get("cd_alpha") is not None else 0.5
+            cd_beta = model_kwargs.get("cd_beta") if model_kwargs.get("cd_beta") is not None else 0.1
+            
+            ## ncd_comments: forward pass of the model with negated text input
             input_ids_ncd = model_kwargs.get("input_ids_ncd")
             model_inputs_cd = self.prepare_inputs_for_generation_ncd(input_ids_ncd, **model_kwargs_cd)
             outputs_cd = self(
@@ -139,14 +144,16 @@ def sample(
                 output_hidden_states=output_hidden_states_wo_img,
             )
             next_token_logits_cd = outputs_cd.logits[:, -1, :]
-            next_token_scores_cd = logits_processor(input_ids_ncd, next_token_logits_cd)
+            cutoff_cd = torch.log(torch.tensor(cd_beta)) + next_token_logits_cd.max(dim=-1, keepdim=True).values
+            diffs_cd = (1+cd_alpha)*next_token_logits_cd - cd_alpha*next_token_logits
+            cd_logits_cd = diffs_cd.masked_fill(next_token_logits_cd < cutoff_cd, -float("inf"))
+            
+            next_token_scores_cd = logits_processor(input_ids_ncd, cd_logits_cd)
             next_token_scores_cd = logits_warper(input_ids_ncd, next_token_scores_cd)
             probs_cd = nn.functional.softmax(next_token_scores_cd, dim=-1)
             next_tokens_cd = torch.multinomial(probs_cd, num_samples=1).squeeze(1)
             
-            ## cd_comments: pre-process logits from contrastive inputs
-            cd_alpha = model_kwargs.get("cd_alpha") if model_kwargs.get("cd_alpha") is not None else 0.5
-            cd_beta = model_kwargs.get("cd_beta") if model_kwargs.get("cd_beta") is not None else 0.1
+            
             
             # version 1  set cutoff for Adaptive Plausibility Constraints
             # probs = nn.functional.softmax(next_token_logits, dim=-1)
@@ -156,8 +163,9 @@ def sample(
             cutoff = torch.log(torch.tensor(cd_beta)) + next_token_logits.max(dim=-1, keepdim=True).values
             
             diffs = (1+cd_alpha)*next_token_logits - cd_alpha*next_token_logits_cd
+            
             cd_logits = diffs.masked_fill(next_token_logits < cutoff, -float("inf"))
-
+            
             ## cd_comments: apply temperature warping and top-k filtering in contrastive decoding
             cd_logits = logits_processor(input_ids, cd_logits)
             cd_logits = logits_warper(input_ids, cd_logits)
