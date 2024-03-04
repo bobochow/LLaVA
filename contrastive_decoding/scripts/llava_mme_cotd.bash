@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=2
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
@@ -7,7 +7,7 @@ model_name=llava-v1.5-7b
 # model_name=llava-v1.5-13b
 # model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
-num_branches=5
+num_branches=10
 
 image_folder=/home/dataset/MME_Benchmark_release_version
 

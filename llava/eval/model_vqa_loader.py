@@ -1,6 +1,7 @@
 import argparse
 import torch
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import json
 from tqdm import tqdm
 import shortuuid
@@ -130,15 +131,15 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
+    parser.add_argument("--model-path", type=str, default="liuhaotian/llava-v1.5-7b")
     parser.add_argument("--model-base", type=str, default=None)
-    parser.add_argument("--image-folder", type=str, default="")
-    parser.add_argument("--question-file", type=str, default="tables/question.jsonl")
-    parser.add_argument("--answers-file", type=str, default="answer.jsonl")
+    parser.add_argument("--image-folder", type=str, default="/home/dataset/MME_Benchmark_release_version")
+    parser.add_argument("--question-file", type=str, default="llava_eval/MME/llava_mme_gt.jsonl")
+    parser.add_argument("--answers-file", type=str, default="llava_eval/MME/answers/test.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument("--temperature", type=float, default=1)
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--max_new_tokens", type=int, default=128)

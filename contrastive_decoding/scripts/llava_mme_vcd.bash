@@ -1,13 +1,13 @@
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=1
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
 type=${3:-"random"}
-# model_name=llava-v1.5-7b
+model_name=llava-v1.5-7b
 # model_name=llava-v1.5-13b
-model_name=llava-v1.6-mistral-7b
+# model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
-cd_alpha=${5:-1}
+cd_alpha=${5:-0.25}
 cd_beta=${6:-0.1}
 noise_step=${7:-500}
 
