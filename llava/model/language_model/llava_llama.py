@@ -172,7 +172,7 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         if inputs_embeds is not None and past_key_values is None:
             model_inputs = {"inputs_embeds": inputs_embeds}
         else:
-            model_inputs = {"input_ids": kwargs.get("input_ids_ncd", None)}
+            model_inputs = {"input_ids": input_ids}
 
         model_inputs.update(
             {

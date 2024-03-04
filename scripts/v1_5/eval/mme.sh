@@ -1,17 +1,41 @@
 #!/bin/bash
+export CUDA_VISIBLE_DEVICES=3
+
+seed=${1:-55}
+dataset_name=${2:-"mme"}
+model_name=llava-v1.5-7b
+model_path=liuhaotian/${model_name}
+
+image_folder=/home/dataset/MME_Benchmark_release_version
+
+temperature=1
+
+neg=false
+
+if [[ $neg == false ]]; then
+    question_file=llava_eval/MME/llava_mme_gt.jsonl
+    experiment=${model_name}-sample-t${temperature}-seed${seed}
+else
+    question_file=llava_eval/MME/llava_mme_neg.jsonl
+    experiment=NEG-${model_name}-sample-t${temperature}-seed${seed}
+fi
+
+answers_file=llava_eval/MME/answers/${experiment}.jsonl
+
 
 python -m llava.eval.model_vqa_loader \
-    --model-path liuhaotian/llava-v1.5-13b \
-    --question-file ./playground/data/eval/MME/llava_mme.jsonl \
-    --image-folder ./playground/data/eval/MME/MME_Benchmark_release_version \
-    --answers-file ./playground/data/eval/MME/answers/llava-v1.5-13b.jsonl \
-    --temperature 0 \
-    --conv-mode vicuna_v1
+    --model-path ${model_path} \
+    --question-file ${question_file} \
+    --image-folder ${image_folder} \
+    --answers-file ${answers_file} \
+    --temperature ${temperature} \
+    --conv-mode vicuna_v1 \
+    --seed ${seed}
 
-cd ./playground/data/eval/MME
+cd llava_eval/MME
 
-python convert_answer_to_mme.py --experiment llava-v1.5-13b
+python convert_answer_to_mme.py --experiment $experiment
 
 cd eval_tool
 
-python calculation.py --results_dir answers/llava-v1.5-13b
+python calculation.py --results_dir answers/$experiment
