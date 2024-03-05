@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -151,11 +151,11 @@ def generate_branching_responses(model, tokenizer, input_ids, image_tensors, ima
             probabilities = torch.softmax(score, dim=-1)
             topk_values, topk_indices = torch.topk(probabilities, 2)
             prob_diff = topk_values[:, 0] - topk_values[:, 1]
-            # decode_seq = tokenizer.decode(topk_indices[:, 0], skip_special_tokens=True)
+            decode_seq = tokenizer.decode(topk_indices[:, 0], skip_special_tokens=True)
             # response.append(decode_seq)
             path_probs.append(round(prob_diff.item(), 4))
-            # print(f"{decode_seq}  {round(prob_diff.item(), 4)}")
-        # print('----'*5)
+            print(f"{decode_seq}  {round(prob_diff.item(), 4)}")
+        print('----'*5)
         k_response.append(response)
         response_probs.append(sum(path_probs) / len(path_probs))
     return k_response, response_probs
@@ -170,13 +170,13 @@ if __name__ == '__main__':
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
-    qs='Is a c++ code shown in the picture?'
-    raw_image = Image.open('../dataset/MME_Benchmark_release_version/code_reasoning/0020.png')
+    qs='Is the door open and the man crouched?'
+    raw_image = Image.open('../dataset/prerelease_bow/images/2410049.jpg')
     #+ ' Answer the question using a single word or phrase.\n'
     if model.config.mm_use_im_start_end:
-        qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs + ' Answer the question using a single word or phrase.\n'
+        qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs 
     else:
-        qs = DEFAULT_IMAGE_TOKEN + '\n' + qs + ' Answer the question using a single word or phrase.\n'
+        qs = DEFAULT_IMAGE_TOKEN + '\n' + qs 
     
     conv = conv_templates[args.conv_mode].copy()
     conv.append_message(conv.roles[0], qs)

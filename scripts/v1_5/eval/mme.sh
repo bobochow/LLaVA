@@ -2,20 +2,20 @@
 export CUDA_VISIBLE_DEVICES=2
 
 seed=55
-model_path=liuhaotian/llava-v1.5-7b
+model_path=liuhaotian/llava-v1.5-13b
 
 image_folder=/home/dataset/MME_Benchmark_release_version
 
 temperature=1
 
-neg=true
+neg=false
 
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
-    experiment=llava-v1.5-7b-sample-t${temperature}-seed${seed}
+    experiment=llava-v1.5-13b-sample-t${temperature}-seed${seed}_v1.6
 else
     question_file=llava_eval/MME/llava_mme_neg.jsonl
-    experiment=NEG-lava-v1.5-7b-sample-t${temperature}-seed${seed}
+    experiment=NEG-llava-v1.5-13b-sample-t${temperature}-seed${seed}_v1.6
 fi
 
 answers_file=llava_eval/MME/answers/${experiment}.jsonl
