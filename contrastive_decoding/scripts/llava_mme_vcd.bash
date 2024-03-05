@@ -33,7 +33,6 @@ python contrastive_decoding/eval/llava_mme_vcd.py \
     --question-file ${question_file} \
     --image-folder ${image_folder} \
     --answers-file  ${answers_file} \
-    --use_cd \
     --cd_alpha $cd_alpha \
     --cd_beta $cd_beta \
     --noise_step $noise_step \

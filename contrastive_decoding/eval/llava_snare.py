@@ -25,17 +25,14 @@ import copy
 import pandas as pd
 
 from transformers import set_seed
-from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise
-from contrastive_decoding.decoding_utils.vcd_decoding import evolve_vcd_sampling
-evolve_vcd_sampling()
+
 
 class CustomDataset(Dataset):
-    def __init__(self, questions_folder, image_folder, tokenizer, image_processor, model_config, noise_step, max_instances, subclausal, conv_mode):
+    def __init__(self, questions_folder, image_folder, tokenizer, image_processor, model_config, max_instances, subclausal, conv_mode):
         
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.model_config = model_config
-        self.noise_step = noise_step
         self.subclausal = subclausal
         self.conv_mode = conv_mode
         
@@ -109,9 +106,7 @@ class CustomDataset(Dataset):
         
         image_tensor = process_images([image], self.image_processor, self.model_config)[0]
         
-        image_tensor_cd = add_diffusion_noise(image_tensor, self.noise_step)
-        
-        return input_ids_list, image_tensor, image_tensor_cd
+        return input_ids_list, image_tensor
 
     def __len__(self):
         return len(self.dataset)

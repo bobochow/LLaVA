@@ -2,11 +2,11 @@ export CUDA_VISIBLE_DEVICES=2
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
-model_name=llava-v1.5-7b
-# model_name=llava-v1.5-13b
+# model_name=llava-v1.5-7b
+model_name=llava-v1.5-13b
 # model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
-cd_alpha=${5:-1.5}
+cd_alpha=${5:-1}
 cd_beta=${6:-0.1}
 
 
@@ -14,7 +14,7 @@ image_folder=/home/dataset/MME_Benchmark_release_version
 
 temperature=1
 
-neg=true
+neg=false
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
     neg_question_file=llava_eval/MME/llava_mme_neg.jsonl
@@ -37,7 +37,6 @@ python contrastive_decoding/eval/llava_mme_ncd.py \
     --neg-question-file ${neg_question_file} \
     --image-folder ${image_folder} \
     --answers-file  ${answers_file} \
-    --use_cd \
     --cd_alpha $cd_alpha \
     --cd_beta $cd_beta \
     --seed ${seed} \

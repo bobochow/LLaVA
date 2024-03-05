@@ -1,7 +1,7 @@
 import argparse
 import torch
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 import json
 from tqdm import tqdm
 import shortuuid
@@ -148,7 +148,6 @@ if __name__ == "__main__":
     parser.add_argument("--max_new_tokens", type=int, default=128)
 
     parser.add_argument("--noise_step", type=int, default=500)
-    parser.add_argument("--use_cd", action='store_true', default=False)
     parser.add_argument("--cd_alpha", type=float, default=0.75)
     parser.add_argument("--cd_beta", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)

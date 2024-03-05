@@ -1,7 +1,7 @@
 import argparse
 import torch
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import json
 from tqdm import tqdm
 import shortuuid
@@ -25,17 +25,16 @@ import copy
 import pandas as pd
 
 from transformers import set_seed
-from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise
-from contrastive_decoding.decoding_utils.vcd_decoding import evolve_vcd_sampling
-evolve_vcd_sampling()
+from contrastive_decoding.decoding_utils.ncd_decoding import evolve_ncd_sampling
+evolve_ncd_sampling()
+
 
 class CustomDataset(Dataset):
-    def __init__(self, questions_folder, image_folder, tokenizer, image_processor, model_config, noise_step, max_instances, subclausal, conv_mode):
+    def __init__(self, questions_folder, image_folder, tokenizer, image_processor, model_config, max_instances, subclausal, conv_mode):
         
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.model_config = model_config
-        self.noise_step = noise_step
         self.subclausal = subclausal
         self.conv_mode = conv_mode
         
@@ -64,8 +63,25 @@ class CustomDataset(Dataset):
         line = self.dataset[index]
         
         qs_options = []
+        neg_qs_options = []
         if self.subclausal:
+            
+            positive = "Is the {} {} and the {} {}?".format(line["obj1_name"],
+                                                                    line["attributes"][0],
+                                                                    line["obj2_name"],
+                                                                    line["attributes"][1])
+            
+            positive1 = "Is the {} {} and the {} not {}?".format(line["obj1_name"],
+                                                                    line["attributes"][0],
+                                                                    line["obj2_name"],
+                                                                    line["attributes"][1])
+            
             negative1 = "Is the {} not {} and the {} {}?".format(line["obj1_name"],
+                                                                    line["attributes"][0],
+                                                                    line["obj2_name"],
+                                                                    line["attributes"][1])
+            
+            positive2 = "Is the {} not {} and the {} {}?".format(line["obj1_name"],
                                                                     line["attributes"][0],
                                                                     line["obj2_name"],
                                                                     line["attributes"][1])
@@ -76,6 +92,9 @@ class CustomDataset(Dataset):
                                                                     line["attributes"][1])
             
             qs_options = [negative1,negative2]
+            # neg_qs_options = [positive1, positive2]
+            neg_qs_options = [positive, positive]
+        
         else:
             positive = "Is the {} {} and the {} {}?".format(line["obj1_name"],
                                                                     line["attributes"][0],
@@ -87,6 +106,7 @@ class CustomDataset(Dataset):
                                                                     line["obj2_name"],
                                                                     line["attributes"][1])
             qs_options = [positive,negative]
+            neg_qs_options = [negative, positive]
         
         input_ids_list=[]
         for qs in qs_options:
@@ -102,6 +122,20 @@ class CustomDataset(Dataset):
             prompt = conv.get_prompt()
             input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
             input_ids_list.append(input_ids)
+        
+        neg_input_ids_list=[]
+        for qs in neg_qs_options:
+            if self.model_config.mm_use_im_start_end:
+                qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs + '\nAnswer the question using a single word or phrase.'
+            else:
+                qs = DEFAULT_IMAGE_TOKEN + '\n' + qs + '\nAnswer the question using a single word or phrase.'
+            
+            conv = conv_templates[self.conv_mode].copy()
+            conv.append_message(conv.roles[0], qs)
+            conv.append_message(conv.roles[1], None)
+            prompt = conv.get_prompt()
+            input_ids = tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')
+            neg_input_ids_list.append(input_ids)
 
         image = Image.open(line["image_path"]).convert('RGB')
         image = image.crop((line["bbox_x"], line["bbox_y"], line["bbox_x"] + line["bbox_w"],
@@ -109,9 +143,8 @@ class CustomDataset(Dataset):
         
         image_tensor = process_images([image], self.image_processor, self.model_config)[0]
         
-        image_tensor_cd = add_diffusion_noise(image_tensor, self.noise_step)
         
-        return input_ids_list, image_tensor, image_tensor_cd
+        return input_ids_list, image_tensor, neg_input_ids_list
 
     def __len__(self):
         return len(self.dataset)
@@ -157,27 +190,27 @@ def eval_model(args):
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, args.model_base, model_name)
     
-    dataset = CustomDataset(args.question_file, args.image_folder, tokenizer, image_processor, model.config, args.noise_step, args.max_instances, args.subclausal, args.conv_mode)
+    dataset = CustomDataset(args.question_file, args.image_folder, tokenizer, image_processor, model.config, args.max_instances, args.subclausal, args.conv_mode)
     data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=False)
     
     os.makedirs(args.output_dir) if not os.path.exists(args.output_dir) else None
     
     scores=[]
-    for (input_ids_list, image_tensor, image_tensor_cd) in tqdm(data_loader, desc="Evaluating:  "):
+    for (input_ids_list, image_tensor, neg_input_ids_list ) in tqdm(data_loader, desc="Evaluating:  "):
         
         batch_scores = []
-        for input_ids in input_ids_list:
+        
+        for i, input_ids in enumerate(input_ids_list):
             score=[]
             input_ids = input_ids.to(device='cuda', non_blocking=True)
+            neg_input_ids = neg_input_ids_list[i].to(device='cuda', non_blocking=True)
             stop_str = conv_templates[args.conv_mode].sep if conv_templates[args.conv_mode].sep_style != SeparatorStyle.TWO else conv_templates[args.conv_mode].sep2
-        
             
             with torch.inference_mode():
                 output_ids = model.generate(
                     input_ids,
                     images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
-                    images_cd=(image_tensor_cd.to(dtype=torch.float16, device='cuda', non_blocking=True) if image_tensor_cd is not None else None),
-                    
+                    input_ids_ncd = neg_input_ids,
                     cd_alpha = args.cd_alpha,
                     cd_beta = args.cd_beta,
                     do_sample=True if args.temperature > 0 else False,
@@ -242,13 +275,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--dataset", default="Negation_Logic", type=str)
-    parser.add_argument("--output_dir", default="llava_eval/snare/", type=str)
+    parser.add_argument("--output_dir", default="llava_eval/snare/test", type=str)
     parser.add_argument("--extra_info", default=None, type=str)
     parser.add_argument("--cot_type", type=str, default=None)
     parser.add_argument("--subclausal", action='store_true', default=False)
     parser.add_argument("--max_instances", type=int, default=16)
-
-    parser.add_argument("--noise_step", type=int, default=500)
     
     parser.add_argument("--cd_alpha", type=float, default=1)
     parser.add_argument("--cd_beta", type=float, default=0.1)

@@ -1,5 +1,5 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=1
 
 seed=${1:-55}
 dataset_name=${2:-"mme"}
@@ -21,7 +21,7 @@ else
 fi
 
 answers_file=llava_eval/MME/answers/${experiment}.jsonl
-
+echo "Running experiment: $experiment"
 
 python -m llava.eval.model_vqa_loader \
     --model-path ${model_path} \
