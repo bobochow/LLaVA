@@ -29,3 +29,5 @@ ckpts*
 *.ipynb
 
 llava_eval
+
+data
