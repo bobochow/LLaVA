@@ -41,10 +41,10 @@ class CustomDataset(Dataset):
         neg_qs = self.neg_questions[index]["text"]
         if self.model_config.mm_use_im_start_end:
             qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
-            neg_qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + neg_qs
+            neg_qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + neg_qs 
         else:
-            qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
-            neg_qs = DEFAULT_IMAGE_TOKEN + '\n' + neg_qs
+            qs = DEFAULT_IMAGE_TOKEN + '\n' + qs 
+            neg_qs = DEFAULT_IMAGE_TOKEN + '\n' + neg_qs 
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
@@ -103,7 +103,8 @@ def eval_model(args):
     for (input_ids, image_tensor, neg_input_ids), line in tqdm(zip(data_loader, questions), total=len(questions)):
         idx = line["question_id"]
         cur_prompt = line["text"]
-        gt = line["GT"]
+        if args.dataset == 'mme':
+            gt = line["GT"]
         
         input_ids = input_ids.to(device='cuda', non_blocking=True)
         neg_input_ids = neg_input_ids.to(device='cuda', non_blocking=True)
@@ -134,13 +135,16 @@ def eval_model(args):
         outputs = outputs.strip()
         
         ans_id = shortuuid.uuid()
-        ans_file.write(json.dumps({"question_id": idx,
-                                   "prompt": cur_prompt,
-                                   "text": outputs,
-                                   "answer_id": ans_id,
-                                   "model_id": model_name,
-                                   "GT": gt,
-                                   "metadata": {}}) + "\n")
+        
+        ans_file.write(json.dumps({
+            "question_id": idx,
+            "prompt": cur_prompt,
+            "text": outputs,
+            "answer_id": ans_id,
+            "model_id": model_name,
+            "metadata": {},
+            "GT": gt if args.dataset == 'mme' else None
+        }) + "\n")
         
         # ans_file.flush()
     ans_file.close()
@@ -149,6 +153,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", type=str, default="liuhaotian/llava-v1.5-7b")
     parser.add_argument("--model-base", type=str, default=None)
+    parser.add_argument("--dataset",type=str, default=None)
     parser.add_argument("--image-folder", type=str, default="/home/dataset/MME_Benchmark_release_version")
     parser.add_argument("--question-file", type=str, default="llava_eval/MME/llava_mme_gt.jsonl")
     parser.add_argument("--neg-question-file", type=str, default="llava_eval/MME/llava_mme_neg.jsonl")

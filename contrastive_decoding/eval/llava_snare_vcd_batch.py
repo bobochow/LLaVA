@@ -1,7 +1,7 @@
 import argparse
 import torch
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import json
 from tqdm import tqdm
 import shortuuid

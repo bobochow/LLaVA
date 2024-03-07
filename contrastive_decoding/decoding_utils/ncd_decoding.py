@@ -140,7 +140,7 @@ def sample(
             ## cd_comments: forward pass of the model with distorted image input
             model_kwargs_cd['attention_mask'] = torch.ones_like(model_kwargs_cd['input_ids_ncd'])
             input_ids_ncd = model_kwargs_cd.get("input_ids_ncd")
-            model_inputs_cd = self.prepare_inputs_for_generation_ncd(input_ids_ncd, **model_kwargs_cd)
+            model_inputs_cd = self.prepare_inputs_for_generation(input_ids_ncd, **model_kwargs_cd)
             
             outputs_cd = self(
                 **model_inputs_cd,
@@ -381,7 +381,7 @@ def greedy_search(
                 ## cd_comments: forward pass of the model with distorted image input
                 model_kwargs_cd['attention_mask'] = torch.ones_like(model_kwargs_cd['input_ids_ncd'])
                 input_ids_ncd = model_kwargs_cd.get("input_ids_ncd")
-                model_inputs_cd = self.prepare_inputs_for_generation_ncd(input_ids_ncd, **model_kwargs_cd)
+                model_inputs_cd = self.prepare_inputs_for_generation(input_ids_ncd, **model_kwargs_cd)
                 
                 outputs_cd = self(
                     **model_inputs_cd,

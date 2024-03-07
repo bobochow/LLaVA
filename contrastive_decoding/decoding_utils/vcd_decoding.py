@@ -132,7 +132,7 @@ def sample(
 
         if use_cd:
             ## cd_comments: forward pass of the model with distorted image input
-            model_inputs_cd = self.prepare_inputs_for_generation_vcd(input_ids, **model_kwargs_cd)
+            model_inputs_cd = self.prepare_inputs_for_generation_cd(input_ids, **model_kwargs_cd)
             outputs_cd = self(
                 **model_inputs_cd,
                 return_dict=True,
@@ -379,7 +379,7 @@ def greedy_search(
             if use_cd:
                 
                 ## cd_comments: forward pass of the model with distorted image input
-                model_inputs_cd = self.prepare_inputs_for_generation_vcd(input_ids, **model_kwargs_cd)
+                model_inputs_cd = self.prepare_inputs_for_generation_cd(input_ids, **model_kwargs_cd)
                 outputs_cd = self(
                     **model_inputs_cd,
                     return_dict=True,

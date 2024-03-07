@@ -7,14 +7,14 @@ model_name=llava-v1.5-7b
 # model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
 cd_alpha=${5:-1}
-cd_beta=${6:-0.1}
+cd_beta=${6:-0}
 
 
 image_folder=/home/dataset/MME_Benchmark_release_version
 
 temperature=1
 
-neg=false
+neg=true
 if [[ $neg == false ]]; then
     question_file=llava_eval/MME/llava_mme_gt.jsonl
     neg_question_file=llava_eval/MME/llava_mme_neg.jsonl
@@ -41,6 +41,8 @@ python contrastive_decoding/eval/llava_vqa_loader_ncd.py \
     --cd_beta $cd_beta \
     --seed ${seed} \
     --temperature ${temperature} \
+    --dataset ${dataset_name} \
+    --conv-mode vicuna_v1  \
 
 cd llava_eval/MME
 

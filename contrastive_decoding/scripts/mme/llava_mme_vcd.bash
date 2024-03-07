@@ -8,7 +8,7 @@ model_name=llava-v1.5-7b
 # model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
 cd_alpha=${5:-1}
-cd_beta=${6:-0.1}
+cd_beta=${6:-0}
 noise_step=${7:-500}
 
 image_folder=/home/dataset/MME_Benchmark_release_version
@@ -39,12 +39,12 @@ python contrastive_decoding/eval/llava_vqa_loader_vcd.py \
     --noise_step $noise_step \
     --seed ${seed} \
     --temperature ${temperature} \
+    --dataset ${dataset_name} \
 
 cd llava_eval/MME
 
 python convert_answer_to_mme.py --experiment $experiment
 
 cd eval_tool
-
 
 python calculation.py --results_dir answers/${experiment}
