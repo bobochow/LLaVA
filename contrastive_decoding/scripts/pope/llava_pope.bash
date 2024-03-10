@@ -1,8 +1,8 @@
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=3
 
 seed=${1:-55}
 dataset_name=${2:-"coco"}
-type=${3:-"random"} #random popular adversarial
+type=${3:-"adversarial"} #random popular adversarial
 model_name=llava-v1.5-7b
 # model_name=llava-v1.5-13b
 # model_name=llava-v1.6-mistral-7b

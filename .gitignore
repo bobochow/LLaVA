@@ -29,5 +29,5 @@ ckpts*
 *.ipynb
 
 llava_eval
-
+contrastive_decoding/eval/chair.pkl
 data

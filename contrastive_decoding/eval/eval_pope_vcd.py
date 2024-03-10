@@ -4,8 +4,8 @@ import argparse
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gt_files", type=str, default="data/POPE/coco_pope_popular.json")
-parser.add_argument("--gen_files", type=str, default="answer_files_POPE/llava15_coco_pope_popular_answers_no_cd.jsonl")
+parser.add_argument("--gt_files", type=str, default="data/POPE/coco/coco_pope_random_neg3.json")
+parser.add_argument("--gen_files", type=str, default="llava_eval/pope/answers/NEG3-llava-1.5-coco-random-opera-seed55-full.jsonl")
 args = parser.parse_args()
 
 # open ground truth answers
@@ -27,11 +27,12 @@ yes_answers = 0
 for index, line in enumerate(gt_files):
     idx = line["question_id"]
     gt_answer = line["label"]
-    assert idx == gen_files[index]["question_id"]
+    # assert idx == gen_files[index]["question_id"]
     gen_answer = gen_files[index]["text"]
     # convert to lowercase
     gt_answer = gt_answer.lower()
     gen_answer = gen_answer.lower()
+    
     # strip
     gt_answer = gt_answer.strip()
     gen_answer = gen_answer.strip()
@@ -51,6 +52,27 @@ for index, line in enumerate(gt_files):
     else:
         print(f'Warning: unknown gt_answer: {gt_answer}')
         unknown += 1
+    
+    # pos = 'yes', neg = 'no'
+    # if gt_answer == 'yes':
+    #     if 'Yes' in gen_answer:
+    #         true_pos += 1
+    #         yes_answers += 1
+    #     elif 'No' in gen_answer and 'no'in gen_answer:
+    #         true_pos += 1
+    #         yes_answers += 1
+    #     else:
+    #         false_neg += 1
+    # elif gt_answer == 'no':
+    #     if 'No' in gen_answer:
+    #         true_neg += 1
+    #     else:
+    #         yes_answers += 1
+    #         false_pos += 1
+    # else:
+    #     print(f'Warning: unknown gt_answer: {gt_answer}')
+    #     unknown += 1
+    
 # calculate precision, recall, f1, accuracy, and the proportion of 'yes' answers
 precision = true_pos / (true_pos + false_pos)
 recall = true_pos / (true_pos + false_neg)

@@ -171,10 +171,6 @@ def eval_model(args):
                 output_ids = model.generate(
                     input_ids,
                     images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
-                    images_cd=(image_tensor_cd.to(dtype=torch.float16, device='cuda', non_blocking=True) if image_tensor_cd is not None else None),
-                    
-                    cd_alpha = args.cd_alpha,
-                    cd_beta = args.cd_beta,
                     do_sample=True if args.temperature > 0 else False,
                     temperature=args.temperature,
                     top_p=args.top_p,
@@ -243,10 +239,6 @@ if __name__ == "__main__":
     parser.add_argument("--subclausal", action='store_true', default=False)
     parser.add_argument("--max_instances", type=int, default=16)
 
-    parser.add_argument("--noise_step", type=int, default=500)
-    
-    parser.add_argument("--cd_alpha", type=float, default=1)
-    parser.add_argument("--cd_beta", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     set_seed(args.seed)

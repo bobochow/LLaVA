@@ -2,13 +2,13 @@ export CUDA_VISIBLE_DEVICES=2
 
 seed=${1:-55}
 dataset_name=${2:-"coco"}
-type=${3:-"popular"} #random popular adversarial
+type=${3:-"adversarial"} #random popular adversarial
 model_name=llava-v1.5-7b
 # model_name=llava-v1.5-13b
 # model_name=llava-v1.6-mistral-7b
 model_path=liuhaotian/${model_name}
 cd_alpha=${5:-1}
-cd_beta=${6:-0.1}
+cd_beta=${6:-0}
 
 if [[ $dataset_name == 'coco' || $dataset_name == 'aokvqa' ]]; then
   image_folder=./data/coco/val2014

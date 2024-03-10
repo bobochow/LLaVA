@@ -21,8 +21,7 @@ from PIL import Image
 import math
 
 from transformers import set_seed
-from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise
-from contrastive_decoding.decoding_utils.vcd_decoding import evolve_vcd_sampling
+from contrastive_decoding.decoding_utils.vcd_decoding import add_diffusion_noise, evolve_vcd_sampling
 evolve_vcd_sampling()
 
 class CustomDataset(Dataset):
